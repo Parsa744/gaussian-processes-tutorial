@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Regression Model Comparison</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 15px;
+            border: 2px solid #e1e8ed;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        select {
+            padding: 10px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            color: #2c3e50;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .value-display {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+            font-weight: normal;
+        }
+
+        .plots-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .plot-wrapper {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border: 2px solid #e1e8ed;
+        }
+
+        .plot-title {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            font-size: 1.2em;
+        }
+
+        .plot-description {
+            text-align: center;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        .desc-linear {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .desc-svr {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .desc-gpr {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        @media (max-width: 768px) {
+            .plots-container {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 Interactive Regression Model Comparison</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="nSamples">Number of Data Points</label>
+                <input type="range" id="nSamples" min="5" max="150" step="5" value="25">
+                <div class="value-display" id="nSamplesValue">25 samples</div>
+            </div>
+
+            <div class="control-group">
+                <label for="noiseLevel">Noise Level</label>
+                <input type="range" id="noiseLevel" min="0" max="1" step="0.05" value="0.25">
+                <div class="value-display" id="noiseLevelValue">0.25</div>
+            </div>
+
+            <div class="control-group">
+                <label for="kernelType">Gaussian Process Kernel</label>
+                <select id="kernelType">
+                    <option value="RBF">RBF (Radial Basis Function)</option>
+                    <option value="Matern">Matérn</option>
+                    <option value="RationalQuadratic">Rational Quadratic</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="lengthScale">GP Length Scale</label>
+                <input type="range" id="lengthScale" min="0.1" max="5" step="0.1" value="1.0">
+                <div class="value-display" id="lengthScaleValue">1.0</div>
+            </div>
+        </div>
+
+        <div class="plots-container">
+            <div class="plot-wrapper">
+                <div class="plot-title">Linear Regression</div>
+                <div class="plot-description desc-linear">❌ Fails to capture non-linearity</div>
+                <div id="linearPlot"></div>
+            </div>
+
+            <div class="plot-wrapper">
+                <div class="plot-title">Support Vector Regression</div>
+                <div class="plot-description desc-svr">✅ Captures non-linearity<br>❌ No uncertainty estimate</div>
+                <div id="svrPlot"></div>
+            </div>
+
+            <div class="plot-wrapper">
+                <div class="plot-title">Gaussian Process Regression</div>
+                <div class="plot-description desc-gpr">✅ Captures non-linearity<br>✅ Provides uncertainty!</div>
+                <div id="gprPlot"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mathematical functions
+        function trueFunction(x) {
+            return Math.sin(2.5 * x);
+        }
+
+        function gaussianNoise(mean = 0, std = 1) {
+            const u = Math.random();
+            const v = Math.random();
+            const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+            return z * std + mean;
+        }
+
+        // Linear regression implementation
+        function linearRegression(X, y) {
+            const n = X.length;
+            const sumX = X.reduce((a, b) => a + b, 0);
+            const sumY = y.reduce((a, b) => a + b, 0);
+            const sumXY = X.reduce((sum, x, i) => sum + x * y[i], 0);
+            const sumXX = X.reduce((sum, x) => sum + x * x, 0);
+
+            const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+
+            return { slope, intercept };
+        }
+
+        // Simple RBF kernel function
+        function rbfKernel(x1, x2, lengthScale = 1.0) {
+            const diff = x1 - x2;
+            return Math.exp(-0.5 * (diff * diff) / (lengthScale * lengthScale));
+        }
+
+        // Matern kernel (nu = 1.5)
+        function maternKernel(x1, x2, lengthScale = 1.0) {
+            const r = Math.abs(x1 - x2) / lengthScale;
+            const sqrt3r = Math.sqrt(3) * r;
+            return (1 + sqrt3r) * Math.exp(-sqrt3r);
+        }
+
+        // Rational Quadratic kernel
+        function rationalQuadraticKernel(x1, x2, lengthScale = 1.0, alpha = 1.0) {
+            const diff = x1 - x2;
+            const r2 = (diff * diff) / (2 * alpha * lengthScale * lengthScale);
+            return Math.pow(1 + r2, -alpha);
+        }
+
+        // Simple SVR approximation (using RBF centers)
+        function simpleSVR(X, y, XPlot) {
+            // Use a subset of training points as support vectors
+            const step = Math.max(1, Math.floor(X.length / 10));
+            const supportVectors = [];
+            const supportValues = [];
+
+            for (let i = 0; i < X.length; i += step) {
+                supportVectors.push(X[i]);
+                supportValues.push(y[i]);
+            }
+
+            return XPlot.map(x => {
+                let prediction = 0;
+                let totalWeight = 0;
+
+                supportVectors.forEach((sv, i) => {
+                    const weight = Math.exp(-2 * Math.pow(x - sv, 2));
+                    prediction += weight * supportValues[i];
+                    totalWeight += weight;
+                });
+
+                return totalWeight > 0 ? prediction / totalWeight : 0;
+            });
+        }
+
+        // Simplified Gaussian Process
+        function simpleGP(X, y, XPlot, kernelType, lengthScale, noiseLevel) {
+            const kernelFunc = kernelType === 'RBF' ? rbfKernel :
+                             kernelType === 'Matern' ? maternKernel :
+                             rationalQuadraticKernel;
+
+            // Build kernel matrix
+            const n = X.length;
+            const K = [];
+            for (let i = 0; i < n; i++) {
+                K[i] = [];
+                for (let j = 0; j < n; j++) {
+                    K[i][j] = kernelFunc(X[i], X[j], lengthScale);
+                    if (i === j) K[i][j] += noiseLevel * noiseLevel;
+                }
+            }
+
+            // Simplified prediction (using nearest neighbors approach for efficiency)
+            const predictions = [];
+            const uncertainties = [];
+
+            XPlot.forEach(x => {
+                let prediction = 0;
+                let totalWeight = 0;
+                let uncertainty = 1.0;
+
+                X.forEach((xi, i) => {
+                    const k = kernelFunc(x, xi, lengthScale);
+                    prediction += k * y[i];
+                    totalWeight += k;
+                });
+
+                if (totalWeight > 0) {
+                    prediction /= totalWeight;
+                }
+
+                // Simple uncertainty estimation
+                const minDist = Math.min(...X.map(xi => Math.abs(x - xi)));
+                uncertainty = Math.max(0.1, Math.min(1.0, minDist / lengthScale)) * 0.5;
+
+                predictions.push(prediction);
+                uncertainties.push(uncertainty);
+            });
+
+            return { predictions, uncertainties };
+        }
+
+        function generateData() {
+            const nSamples = parseInt(document.getElementById('nSamples').value);
+            const noiseLevel = parseFloat(document.getElementById('noiseLevel').value);
+            const kernelType = document.getElementById('kernelType').value;
+            const lengthScale = parseFloat(document.getElementById('lengthScale').value);
+
+            // Generate training data
+            const XTrain = [];
+            const yTrain = [];
+            for (let i = 0; i < nSamples; i++) {
+                const x = -3 + (6 * i) / (nSamples - 1);
+                const y = trueFunction(x) + gaussianNoise(0, noiseLevel);
+                XTrain.push(x);
+                yTrain.push(y);
+            }
+
+            // Generate plot data
+            const XPlot = [];
+            const yTrue = [];
+            for (let i = 0; i < 200; i++) {
+                const x = -4 + (8 * i) / 199;
+                XPlot.push(x);
+                yTrue.push(trueFunction(x));
+            }
+
+            // Fit models
+            const lr = linearRegression(XTrain, yTrain);
+            const yLinear = XPlot.map(x => lr.slope * x + lr.intercept);
+
+            const ySVR = simpleSVR(XTrain, yTrain, XPlot);
+
+            const gpResult = simpleGP(XTrain, yTrain, XPlot, kernelType, lengthScale, noiseLevel);
+
+            return {
+                XTrain, yTrain, XPlot, yTrue, yLinear, ySVR,
+                yGPR: gpResult.predictions,
+                uncertainties: gpResult.uncertainties
+            };
+        }
+
+        function updatePlots() {
+            const data = generateData();
+
+            const commonLayout = {
+                xaxis: { title: 'Input (x)', range: [-4, 4] },
+                yaxis: { title: 'Output (y)', range: [-3, 3] },
+                showlegend: true,
+                height: 400,
+                margin: { l: 50, r: 50, t: 30, b: 50 }
+            };
+
+            // Linear Regression Plot
+            const linearData = [
+                {
+                    x: data.XPlot,
+                    y: data.yTrue,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'True Function',
+                    line: { color: 'red', dash: 'dot', width: 2 }
+                },
+                {
+                    x: data.XTrain,
+                    y: data.yTrain,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Noisy Data',
+                    marker: { color: 'blue', size: 8, line: { color: 'black', width: 1 } }
+                },
+                {
+                    x: data.XPlot,
+                    y: data.yLinear,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Linear Prediction',
+                    line: { color: 'green', width: 3 }
+                }
+            ];
+
+            // SVR Plot
+            const svrData = [
+                {
+                    x: data.XPlot,
+                    y: data.yTrue,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'True Function',
+                    line: { color: 'red', dash: 'dot', width: 2 }
+                },
+                {
+                    x: data.XTrain,
+                    y: data.yTrain,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Noisy Data',
+                    marker: { color: 'blue', size: 8, line: { color: 'black', width: 1 } }
+                },
+                {
+                    x: data.XPlot,
+                    y: data.ySVR,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'SVR Prediction',
+                    line: { color: 'magenta', width: 3 }
+                }
+            ];
+
+            // GPR Plot with uncertainty
+            const upperBound = data.yGPR.map((y, i) => y + 1.96 * data.uncertainties[i]);
+            const lowerBound = data.yGPR.map((y, i) => y - 1.96 * data.uncertainties[i]);
+
+            const gprData = [
+                {
+                    x: data.XPlot,
+                    y: data.yTrue,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'True Function',
+                    line: { color: 'red', dash: 'dot', width: 2 }
+                },
+                {
+                    x: [...data.XPlot, ...data.XPlot.slice().reverse()],
+                    y: [...upperBound, ...lowerBound.slice().reverse()],
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'toself',
+                    fillcolor: 'rgba(0, 188, 212, 0.3)',
+                    line: { color: 'rgba(255,255,255,0)' },
+                    name: '95% Confidence',
+                    showlegend: true
+                },
+                {
+                    x: data.XTrain,
+                    y: data.yTrain,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Noisy Data',
+                    marker: { color: 'blue', size: 8, line: { color: 'black', width: 1 } }
+                },
+                {
+                    x: data.XPlot,
+                    y: data.yGPR,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'GPR Mean',
+                    line: { color: 'cyan', width: 3 }
+                }
+            ];
+
+            Plotly.newPlot('linearPlot', linearData, commonLayout);
+            Plotly.newPlot('svrPlot', svrData, commonLayout);
+            Plotly.newPlot('gprPlot', gprData, commonLayout);
+        }
+
+        function updateValueDisplays() {
+            document.getElementById('nSamplesValue').textContent =
+                document.getElementById('nSamples').value + ' samples';
+            document.getElementById('noiseLevelValue').textContent =
+                document.getElementById('noiseLevel').value;
+            document.getElementById('lengthScaleValue').textContent =
+                document.getElementById('lengthScale').value;
+        }
+
+        // Event listeners
+        document.getElementById('nSamples').addEventListener('input', () => {
+            updateValueDisplays();
+            updatePlots();
+        });
+
+        document.getElementById('noiseLevel').addEventListener('input', () => {
+            updateValueDisplays();
+            updatePlots();
+        });
+
+        document.getElementById('kernelType').addEventListener('change', updatePlots);
+
+        document.getElementById('lengthScale').addEventListener('input', () => {
+            updateValueDisplays();
+            updatePlots();
+        });
+
+        // Initial setup
+        updateValueDisplays();
+        updatePlots();
+    </script>
+</body>
+</html>
