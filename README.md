@@ -4,3 +4,4 @@ A comprehensive tutorial on Gaussian Processes (GPs) that covers the theory and 
 - frond is an HTML example and a comparison with SVM and linear reg
 - Excel file is an example by hand, adapted from https://www.byhand.ai/
 - and a PDF of the general idea 
+![Example GA](Data/Example.png)
